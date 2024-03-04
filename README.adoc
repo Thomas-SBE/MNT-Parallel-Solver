@@ -1,0 +1,88 @@
+= MNT Parallel Solver
+
+WARNING: Ce projet est en cours de développement et certaines fonctionnalités peuvent ne pas fonctionner.
+
+Le projet MNT permet a partir d'une matrice de "hauteurs" (heightmap) de calculer les taux d'accumulations pour chaque cellules, c'est à dire combien de cellules s'écoulent dans celle-ci. Cette version vise a proposer des algorithmes permettant de faire ces calcul parallèlement et de manière optimisée.
+
+.Exemple de processus de MNT
+|===
+| *MNT* (heightmap) | *DIRECTIONS* | *DIRECTIONS PARSED* (affichage seulement) | *ACCUMULATIONS*
+a|
+!===
+!78 !72 !69 !71 !58 !49 
+!74 !67 !56 !49 !46 !50 
+!69 !53 !44 !37 !38 !38 
+!64 !58 !55 !22 !31 !24 
+!68 !51 !47 !21 !16 !19 
+!74 !53 !54 !12 !11 !12 
+!===
+a|
+!===
+!5 !5 !5 !5 !6 !7
+!5 !5 !5 !6 !7 !7
+!4 !4 !5 !6 !7 !6
+!5 !3 !5 !5 !6 !7
+!4 !4 !5 !5 !6 !7
+!3 !3 !4 !4 !0 !8
+!===
+a|
+!===
+!↘ !↘ !↘ !↘ !↓ !↙
+!↘ !↘ !↘ !↓ !↙ !↙
+!→ !→ !↘ !↓ !↙ !↓
+!↘ !↗ !↘ !↘ !↓ !↙
+!→ !→ !↘ !↘ !↓ !↙
+!↗ !↗ !→ !→ !  !←
+!===
+ a|
+!===
+!1 !1 !1 !1 !1 !1 
+!1 !2 !2 !2 !4 !1 
+!1 !3 !7 !9 !2 !1 
+!1 !1 !1 !19 !1 !2 
+!1 !4 !6 !2 !23 !1 
+!1 !1 !1 !8 !36 !1
+!===
+|===
+
+
+Ce projet va proposer 2 versions de parallèlisme, une utilisant la librairie MPI permettant la parallèlisation des calculs sur plusieurs processus CPU. L'autre utilisant OpenCL afin d'utiliser les propriétés et performances des GPU. Cela permet de comparer l'éfficacité des deux méthodes pour un problème de MNT.
+
+
+.Implémentation des algorithmes
+|===
+| *NOM* | *DESCRIPTION* | *PERFORMANCES* | *IMPACTE DE MEMOIRE*
+
+| MPI_Directions | Permet de trouver dans quelle direction l'écoulement va pour chaque cellule d'une matrice MNT | Bonnes | Négligeable
+| MPI_MemHungryProcess | Permet de calculer les accumulations avec les directions en copiant la matrice de directions sur chaque processus puis en faisant la simulation de chaque point de la matrice. | Bonnes | Copie la matrice direction pour chaque processus, très peu optimal
+| MPI_AccumulateBySelf | Permet de calculer les accumulations avec les directions en subdivisant les données de directions, puis calcul sa propre valeur. Répète ses actions en se basant sur une matrice de changements qui indique si la cellule a été modifiée par une itérations | Bonnes | Très correct / Négligeables
+|===
+
+*VOCABULAIRE*
+
+Vous retrouvez ici les mots utilisés courament dans ce projet:
+
+. *"shadow"*: une bordure supplémentaire autour des matrices afin d'avoir une gestion des algorithmes plus génériques (pour les bordures)
+. *"NODATA"*: une valeur qui décrit une cellule faisant partie des shadow
+
+== Utilisation
+
+Afin d'utiliser la version MPI, il faut faire les commandes suivantes:
+[source,bash]
+----
+cd MNT-Parallel-Solver
+make
+cd build
+mpirun.mpich -np 1 ./mpimnt <fichier_source> <nombre_de_processus> <flags>
+----
+
+. ``fichier_source`` chemin vers le fichier MNT a traiter.
+. ``nombre_de_processus`` le nombre de processus "follower" cette valeur doit être entre 1 et votre nombre de threads - 1.
+. ``flags`` il s'agit de 3 caractères qui servent a l'affichage, mettre a 1 active et 0 désactive, ils représentent dans l'ordre les affichages suivants:
+.. Affichage de la matrice MNT avec "shadows"
+.. Affichage de la matrice directions avec "shadows"
+.. Affichage de la matrice d'accumulation
+
+== Benchmarks
+
+Les données de benchmark sont a venir...
