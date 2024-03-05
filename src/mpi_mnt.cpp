@@ -11,7 +11,7 @@
 
 
 //////////////////////////////////////////////// DATA ////////////////////////////////////////////////
-float *DATA;            // - Matrice des MNT
+int *DATA;            // - Matrice des MNT
 char *DIRECTIONS;       // - Matrice des directions de flots
 int *ACCUMULATION;      // - Matrice des accumulations
 char *CHANGED;          // - Matrice de changement quand une cellule a une nouvelle valeure
@@ -19,7 +19,7 @@ int LINES = 0;          // - Nombre de lignes de la matrice MNT
 int COLS = 0;           // - Nombre de colones de la matrice MNT
 int S_LINES = 0;        // - Nombre de lignes de DATA (MNT+ghosts)
 int S_COLS = 0;         // - Nombre de colones de DATA (MNT+ghosts)
-float NODATA = -1;      // - Valeur de NO_DATA
+int NODATA = -1;      // - Valeur de NO_DATA
 int PID, nLeader;       // - PID du processus courant + nombre de leaders (ici normalement max. 1)
 int nFollowers;         // - Nombre de followers par leader
 MPI_Comm intercom;      // - Intercommunicateur leader - follower
@@ -60,9 +60,9 @@ void MPI_Initialisation(int argc, char** argv)
 
     MPI_Bcast(&LINES, 1, MPI_INT, 0, intercom);
     MPI_Bcast(&COLS, 1, MPI_INT, 0, intercom);
-    MPI_Bcast(&NODATA, 1, MPI_FLOAT, 0, intercom);
+    MPI_Bcast(&NODATA, 1, MPI_INT, 0, intercom);
 
-    MPI_Win_create(DATA, S_COLS * S_LINES * sizeof(float), sizeof(float), MPI_INFO_NULL, intercom, &wDATA);
+    MPI_Win_create(DATA, S_COLS * S_LINES * sizeof(int), sizeof(int), MPI_INFO_NULL, intercom, &wDATA);
     MPI_Win_fence(MPI_MODE_NOPRECEDE, wDATA);
     MPI_Win_create(DIRECTIONS, S_COLS * S_LINES * sizeof(char), sizeof(char), MPI_INFO_NULL, intercom, &wDIRECTIONS);
     MPI_Win_fence(0, wDIRECTIONS);

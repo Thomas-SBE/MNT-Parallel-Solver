@@ -12,7 +12,7 @@
 //////////////////////////////////////////////// DATA ////////////////////////////////////////////////
 int LINES;                      // - Nombre de lignes de la matrice MNT
 int COLS;                       // - Nombre de colonnes de la matrice MNT
-float NODATA;                   // - Valeur de NODATA dans MNT
+int NODATA;                   // - Valeur de NODATA dans MNT
 int S_LINES;                    // - Nombre de lignes de la matrice MNT avec shadows
 int S_COLS;                     // - Nombre de colonnes de la matrice MNT avec shadows
 int nFollower, PID;             // - Nombre de processus follower + PID du processus actuel
@@ -34,7 +34,7 @@ void FollowerDirections()
     int nOperations = 0;
 
     int linesToCopy = (LINES / nFollower) + (LINES % nFollower == 0 ? 0 : 1); // On prends une ligne en plus si on déborde.
-    float* lData = new float[S_COLS*(linesToCopy+2)];
+    int* lData = new int[S_COLS*(linesToCopy+2)];
     char* dDirections = new char[S_COLS * (linesToCopy+2)];
     for(int i = 0; i < S_COLS * ((LINES/nFollower)+2); i++) dDirections[i] = DIRECTION_NODATA;
 
@@ -43,7 +43,7 @@ void FollowerDirections()
     int currentLine = processDataOffset / S_COLS;
 
     MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, DATA);
-    MPI_Get(lData, S_COLS*(linesToCopy+2), MPI_FLOAT, 0, (currentLine-1) * S_COLS, S_COLS*(linesToCopy+2), MPI_FLOAT, DATA);
+    MPI_Get(lData, S_COLS*(linesToCopy+2), MPI_INT, 0, (currentLine-1) * S_COLS, S_COLS*(linesToCopy+2), MPI_INT, DATA);
     MPI_Win_unlock(0, DATA);
 
     for(int i = 0; i < elementsToPlace; i++){
@@ -56,7 +56,7 @@ void FollowerDirections()
 
         int minval = __INT_MAX__;
         char mindir = 0;
-        float* cells = new float[9];
+        int* cells = new int[9];
 
         for(int e = 0; e < 9; e++){
             int lx = (e%3) - 1;
@@ -81,10 +81,10 @@ void FollowerDirections()
                     default: mindir = 0;
                 }
             }
-            if(minval >= cells[4]){
-                // Si le minimum autour est plus grand que nous, alors aucune direction.
-                mindir = 0;
-            }
+        }
+        if(minval >= cells[4]){
+            // Si le minimum autour est plus grand que nous, alors aucune direction.
+            mindir = 0;
         }
         nOperations++;
         dDirections[x+(y*S_COLS)] = mindir;
@@ -297,7 +297,7 @@ int main(int argc, char** argv) {
 
     MPI_Bcast(&LINES, 1, MPI_INT, 0, intercom);
     MPI_Bcast(&COLS, 1, MPI_INT, 0, intercom);
-    MPI_Bcast(&NODATA, 1, MPI_FLOAT, 0, intercom);
+    MPI_Bcast(&NODATA, 1, MPI_INT, 0, intercom);
 
     // Taille de matrice avec shadows
     S_LINES = LINES + 2;

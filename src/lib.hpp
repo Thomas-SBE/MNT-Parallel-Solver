@@ -34,7 +34,7 @@ int ARROWS[10] = {0x20, 0x2196, 0x2191, 0x2197, 0x2192, 0x2198, 0x2193, 0x2199, 
     Description:
     Lit le fichier MNT qui est donné.
 */
-void readFileData(const char* filepath, int* outSizeX, int* outSizeY, float* outNoData, float** inoutData)
+void readFileData(const char* filepath, int* outSizeX, int* outSizeY, int* outNoData, int** inoutData)
 {
     LOGGED(std::cout << "Opening file " << filepath << std::endl)
     
@@ -47,26 +47,23 @@ void readFileData(const char* filepath, int* outSizeX, int* outSizeY, float* out
     int _;
     fscanf(fp, "%d", outSizeX);
     fscanf(fp, "%d", outSizeY);
-    fscanf(fp, "%d", &_);
-    fscanf(fp, "%d", &_);
-    fscanf(fp, "%d", &_);
-    fscanf(fp, "%f", outNoData);
+    fscanf(fp, "%d", outNoData);
 
     LOGGED(std::cout << "SIZE_X:" << *outSizeX << " SIZE_Y:" << *outSizeY << " NODATA:" << *outNoData << std::endl)
 
     int width = (*outSizeX);
     int height = (*outSizeY);
 
-    *inoutData = new float[(width+2) * (height+2)];
+    *inoutData = new int[(width+2) * (height+2)];
     LOGGED(std::cout << "Malloced " << (width*height) << " bytes to inoutData " << inoutData << std::endl)
 
-    float cDepth;
+    int cDepth;
 
     for (int i = 0; i < height; i++)
     {
         for (int j = 0; j < width; j++)
         {
-            fscanf(fp, "%f ", &cDepth);
+            fscanf(fp, "%d ", &cDepth);
             (*inoutData)[(j+1) + ((i+1)*(width+2))] = cDepth;
         }
     }
