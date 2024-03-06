@@ -1,0 +1,121 @@
+= Rapport détaillé
+:stem:
+
+Ce document aborde des différentes méthodologies afin d'obtenir les accumulations de manière efficace.
+Il sera possible d'y retrouver une version détaillée de chaque implémentation (MPI et OpenCL) et d'y observer
+les différences de performances et optimisations d'espace.
+
+==== Vocabulaire récurent
+Vous retrouvez ici les mots utilisés courament dans ce projet, il est supposé que vous ayez des connaissances du
+vocabulaire lié aux librairies MPI et OpenCL:
+
+. *"shadow"*: une bordure supplémentaire autour des matrices afin d'avoir une gestion des algorithmes plus génériques (pour les bordures)
+. *"NODATA"*: une valeur qui décrit une cellule faisant partie des shadow
+
+== Théorie commune
+
+Vous retrouverez ici la théorie derrière les implémentations. Il s'agit de l'idée globale mais ne représente pas a l'exactitude les implémentations faites.
+
+Le but étant de subdiviser le problème au maximum afin de pouvoir optimiser les calculs pour OpenCL mais aussi MPI dans le cas ou si nous pouvons faire 1 cellule nous pouvons alors appliquer le même principe sur les suivantes.
+
+=== Directions
+
+Supposons alors que nous ayons une cellule stem:[X], pour déterminer la direction dans laquelle nous nous dirigeons (si celle-ci existe) nous devons observer nos 8 voisins direct. Il est possible alors de trouver le minimum parmis eux et de le comparer a notre valeur. Si notre valeur est plus faible que le minimum des voisins alors nous ne nous dirigeons nul part, nous sommes considéré comme un "trou". Si ce n'est pas le cas nous désignons que stem:[X] a pour direction la cellule voisine portant la valeur minimum.
+
+Les données de direction sont encodées sous ce format:
+
+.Encodage des données de direction
+[cols="1,1,1,1,1,1,1,1,2"]
+|===
+| *NO* | *N* | *NE* | *E* | *SE* | *S* | *SO* | *O* | *Aucune direction*
+| 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 0
+|===
+
+Il suffit alors d'effectuer ce processus sur toutes les cellules de notre matrice MNT afin d'obtenir les directions
+de chaque emplacement.
+
+=== Accumulation
+
+Repartons du principe de base étant que nous avons une cellule stem:[X], afin de savoir sa valeur d'accumulation, nous devons connaitre l'accumulation des voisins direct qui ont pour direction notre cellule, qui eux aussi auront besoin de connaitre leur accumulation etc... Ceci peut sembler problématique vu que nous devons récursivement connaitre les valeurs des cellules concernées.
+
+Cependant, nous n'avons pas de récurrence a faire, nous devons seulement réitérer notre calcul plusieur fois. Supposons que nous avons notre matrice de direction stem:[D] obtenu précedemment, notre matrice d'accumulation stem:[A] qui accueil les calculs et une matric stem:[C] dîte de changements qui va accueillir 1 ou 0 en fonction de si notre cellule à effectué un changement.
+
+Nous devons alors suivre un algorithme simple:
+
+Si nous avons un voisin qui "pointe" vers nous et que celui ci a un changement dans stem:[C] (valeur a 1), alors nous devons changer nous aussi et recalculer notre accumulation dans stem:[A] en se basant sur la somme des accumulations des voisins se dirigeant vers nous. Si nous avons aucun changement autour de nous, alors nous ne devons pas changer non plus.
+
+Nous devons répéter ce processus jusqu'a ce que la matrice de changements soit entièrement à 0, alors nous aurons notre résultat définitif dans la matrice stem:[A].
+
+NOTE: Il est possible de vérifier si le résultat est final d'une autre manière. En théorie, une matrice MNT doit s'écouler obligatoirement dans un trou. Il peut y en avoir un seul ou plusieurs mais dans tous les cas la somme des valeurs des trous dans stem:[A] est censé être égale à: (largeur de stem:[A]) stem:[\times] (hauteur de stem:[A]).
+
+=== Accumulation par simulation
+
+Il s'agit plus d'une expérimentation que d'une réelle solution car trop gourmande en espace mémoire. On part du principe que les directions sont de réelles déplacements, c'est à dire que si nous nous situons a un emplacement stem:[(x,y)], et que notre direction dans stem:[D] est SE, alors nos coordonnées sont alors stem:[(x+1,y+1)].
+
+En répétant cet opération jusqu'a un trou, nous pouvons alors dans une matrice d'accumulation ajouter 1 par cellule que nous traversons. Résultant en une matrice d'accumulation complète.
+
+== Implémentations MPI
+
+Afin de pouvoir effectuer ces calculs nous utilisons ici MPICH, permettant d'avoir des processus dits leaders et followers. Les followers étant invoqués par les leaders. Dans notre cas nous aurons toujours un seul leader.
+
+Pourquoi ? Et bien notre leader nous sert ici de "manager", il gère les processus et les données. De plus, nous aurions pas nécessairement besoin de plus de leaders étant donné qu'un leader peut avoir le nombre de threads maximum - 1.
+
+Nous avons donc sur notre processus leader 4 matrices: +
+*DATA* stem:[M], *DIRECTIONS* stem:[D], *ACCUMULATIONS* stem:[A] et *CHANGED* stem:[C].
+
+Cette version ne requiert pas que le nombre de ligne soit un multiple du nombre de follower stem:[f]. Cependant stem:[f] doit être un multiple du nombre de cellule total, par exemple stem:[f = 3] et stem:[|M| = 36] est correct, mais stem:[f = 5] et stem:[|M| = 36] est invalide. Cela permet de pouvoir subdiviser le problème en fonction de stem:[f] mais implique certaines règles supplémentaires de gestion de mémoire afin de ne pas tomber dans une _Segmentation Fault_.
+
+Le concept général est que nous devons copier notre contenu (nombre d'éléments par follower) stem:[e] avec les _shadows_ gauche, droite de leur lignes puis les contenus de la ligne au dessus et en dessous.
+
+.Exemple de récupération des données
+[cols="1,2"]
+|===
+a|
+image::https://i.imgur.com/8ZuGkoR.jpg[Répartition,250,250] a|
+Cette image représente la matrice stem:[M] avec les _NODATA_ ajoutés et représentés par des N. Ici nous supposons 
+stem:[f = 4] et stem:[\|M\| = 36].
+
+- La zone rouge désigne les stem:[e] éléments du follower 1
+- La zone surlignée désigne la zone que le follower 1 doit copier en mémoire, représente aussi son espace de travail
+|===
+
+Une fois que nous avons fais nos calculs pour nos stem:[e] éléments, nous devons alors replacer les données a leur emplacement initial. Afin de limiter le nombre de transfert de données, celles-ci sont redonnées de manière contigues (incluant les _NODATA_). Cependant nous ne devons pas restituer toute notre zone de travail étant donné que celle-ci superposerait des données traitées par un autre processus. Nous devons alors faire plusieurs assomptions:
+
+- Nous n'aurons jamais a copier la ligne supérieure
+- Nous n'aurons jamais a copier la ligne inférieure
+- Nous devons copier les _NODATA_ gauche ET droite si nous avons une ligne complète de données
+- Si nous avons qu'une portion gauche de données il faut copier le _NODATA_ gauche.
+- Si nous avons qu'une portion droite de données il faut copier le _NODATA_ droite.
+
+En suivant ces règles nous pouvons supposer que les données sont contigues et il suffit alors de déterminer un nombre d'éléments a copier respectant ces règles.
+
+Ces principes s'appliquent aux 2 calculs _Directions_ et _Accumulations_ pour toutes les matrices stem:[M],stem:[D],stem:[A] et stem:[C].
+
+Pour le calcul _Accumulation par simulation_, nous n'avons pas la nécessité d'avoir de _shadows_. Cependant chaque processus doit avoir une copie de la matrice stem:[A] locale car c'est celle-ci qui va avoir les passages de la simulation. Il suffit alors a la fin de tous les processus de faire une accumulation des matrices stem:[A_{loc}] pour avoir le résultat stem:[A] final.
+
+== Implémentations OpenCL
+
+La version OpenCL nous donne un avantage, la structure des work-items et work-groups qui permet de faire un traitement en 2 dimensions. Pratique pour des matrices 2D !
+
+Chaque kernel va donc traiter sa cellule propre, que ce soit pour _Directions_ ou _Accumulations_. Nous pouvons récupérer dans chacun des kernel exécuté son emplacement dans la matrice stem:[(x,y)].
+
+NOTE: Toutes les matrices stem:[M],stem:[D],stem:[A] et stem:[C] contiennent des _shadows_, il faut le prendre en compte lorsque notre kernel s'exécute. En ignorant de faire quoi que ce soit si celui-ci traite un _NODATA_.
+
+.Représentation du voisinage OpenCL
+[cols="1,5"]
+|===
+a| image::https://i.imgur.com/n8Lg371.jpg[Représentation, 150,150] a|
+Chaque kernel doit avoir un point de vue sur lui-même et ses alentours. +
+Dans cette implémentation, les cellules voisines sont copiées depuis la mémoire globale vers les registres.
+Nous avons des Array de 9 éléments représentés sur le schéma a gauche. +
+Dans le cas de _Directions_ nous avons 1 voisinage de stem:[M], dans _Accumulations_ nous avons 3 voisinages: stem:[D],stem:[A] et stem:[C].
+|===
+
+Lors de _l'accumulation_ si notre kernel désigne une cellule ayant changé lors de l'itération, nous faisons un addition atomique sur la somme des changements des kernels. Ceci nous permet d'avoir notre post-condition afin de déterminer si le calcul est terminé. Car tant qu'il ne l'est pas, il faut relancer les kernels.
+
+Cette implémentation fonctionne avec toute forme de matrice, carré ou non, cependant est optimisé pour le calcul de matrices carrés. La taille des work-groups est automatiquement calculé en fonction de la taille de la matrice.
+Le résultat de ce calcul est optimal pour les matrices carré.
+
+== Benchmarks et comparatifs
+
+Les données de benchmark sont a venir...
