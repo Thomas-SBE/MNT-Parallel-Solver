@@ -257,8 +257,12 @@ void FollowerSelfAccumulated()
 
                 // 3.bis. Si personne autour de nous ne change, aucune raison de changer nous-même.
                 rChanges[x + (y * S_COLS)] = UNCHANGED;
-            
+        
             }
+
+            delete local_changes;
+            delete local_dirs;
+            delete local_acc;
         }
 
         

@@ -56,6 +56,10 @@ Ce projet va proposer 2 versions de parallèlisme, une utilisant la librairie MP
 | MPI_Directions | Permet de trouver dans quelle direction l'écoulement va pour chaque cellule d'une matrice MNT | Bonnes | Négligeable
 | MPI_MemHungryProcess | Permet de calculer les accumulations avec les directions en copiant la matrice de directions sur chaque processus puis en faisant la simulation de chaque point de la matrice. | Bonnes | Copie la matrice direction pour chaque processus, très peu optimal
 | MPI_AccumulateBySelf | Permet de calculer les accumulations avec les directions en subdivisant les données de directions, puis calcul sa propre valeur. Répète ses actions en se basant sur une matrice de changements qui indique si la cellule a été modifiée par une itérations | Bonnes | Très correct / Négligeables
+| OCL_Directions | Permet de calculer les directions directement sur le GPU | Bonnes | Impacte la VRAM
+| OCL_AccumulateBySelf | Permet de faire le calcul d'accumulations directement sur le GPU, en utilisant la mémoire globale et en partie des registres. La mémoire locale n'a que peu d'interet dans ce scénario | Bonnes | Impacte la VRAM
+| SEQ_Directions | Calcul de la direction par un seul processus de manière séquentielle | Moins bonnes | Négligeable
+| SEQ_AccumulateBySelf | Fait le calcul d'accumulation par un seul processus, il se charge de devoir tout faire dans une itération conditionnelle. | Moyenne | Correct
 |===
 
 *VOCABULAIRE*
@@ -67,7 +71,7 @@ Vous retrouvez ici les mots utilisés courament dans ce projet:
 
 == Utilisation
 
-Afin d'utiliser la version MPI, il faut faire les commandes suivantes:
+*Afin d'utiliser la version MPI, il faut faire les commandes suivantes:*
 [source,bash]
 ----
 cd MNT-Parallel-Solver
@@ -83,6 +87,49 @@ mpirun.mpich -np 1 ./mpimnt <fichier_source> <nombre_de_processus> <flags>
 .. Affichage de la matrice directions avec "shadows"
 .. Affichage de la matrice d'accumulation
 
+*Pour l'utilisation de la version OpenCL, il faut faire les commandes suivantes:*
+[source,bash]
+----
+cd MNT-Parallel-Solver
+make
+cd build
+./oclmnt <fichier_source> <flags>
+----
+
+. ``fichier_source`` chemin vers le fichier MNT a traiter.
+. ``flags`` il s'agit de 3 caractères qui servent a l'affichage, mettre a 1 active et 0 désactive, ils représentent dans l'ordre les affichages suivants:
+.. Affichage de la matrice MNT avec "shadows"
+.. Affichage de la matrice directions avec "shadows"
+.. Affichage de la matrice d'accumulation
+
+*Pour l'utilisation de la version séquentielle, il faut faire les commandes suivantes:*
+[source,bash]
+----
+cd MNT-Parallel-Solver
+make
+cd build
+./seqmnt <fichier_source> <flags>
+----
+
+. ``fichier_source`` chemin vers le fichier MNT a traiter.
+. ``flags`` il s'agit de 3 caractères qui servent a l'affichage, mettre a 1 active et 0 désactive, ils représentent dans l'ordre les affichages suivants:
+.. Affichage de la matrice MNT avec "shadows"
+.. Affichage de la matrice directions avec "shadows"
+.. Affichage de la matrice d'accumulation
+
+*Exemple d'utilisation avec flags:*
+[source,bash]
+----
+cd MNT-Parallel-Solver
+make
+cd build
+./seqmnt ../samples/mini.txt 010
+----
+. La matrice MNT *n'est pas affichée*
+. La matrice de direction *est affichée*
+. La matrice d'accumulation *n'est pas affichée*
+
+
 == Benchmarks
 
-Les données de benchmark sont a venir...
+Voir les benchmarks dans le rapport complet link:REPORT.pdf[ici].

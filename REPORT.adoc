@@ -118,4 +118,76 @@ Le résultat de ce calcul est optimal pour les matrices carré.
 
 == Benchmarks et comparatifs
 
-Les données de benchmark sont a venir...
+Tout d'abord les benchmarks ont été réalisés sur cette machine:
+[source,txt]
+----
+$ CPU
+Architecture:            x86_64
+  CPU op-mode(s):        32-bit, 64-bit
+  Address sizes:         48 bits physical, 48 bits virtual
+  Byte Order:            Little Endian
+CPU(s):                  16
+  On-line CPU(s) list:   0-15
+Vendor ID:               AuthenticAMD
+  Model name:            AMD Ryzen 7 5800X 8-Core Processor
+    CPU family:          25
+    Model:               33
+    Thread(s) per core:  2
+    Core(s) per socket:  8
+    Socket(s):           1
+    Stepping:            2
+    Frequency boost:     enabled
+    CPU(s) scaling MHz:  51%
+    CPU max MHz:         4850.1948
+    CPU min MHz:         2200.0000
+
+$ GPU
+Device Name                                     NVIDIA GeForce RTX 3060 Ti
+Device Vendor                                   NVIDIA Corporation
+Device Vendor ID                                0x10de
+Device Version                                  OpenCL 3.0 CUDA
+Max compute units                               38
+Max clock frequency                             1665MHz
+Compute Capability (NV)                         8.6
+Device Partition                                (core)
+Max number of sub-devices                     1
+Supported partition types                     None
+Supported affinity domains                    (n/a)
+Max work item dimensions                        3
+Max work item sizes                             1024x1024x64
+Max work group size                             1024
+Preferred work group size multiple (device)     32
+Preferred work group size multiple (kernel)     32
+Global memory size                              8357871616 (7.784GiB)
+----
+
+Maintenant quelques informations brutes, elles représentent les données moyennées sur 16 itérations. Voici les temps d'exécutions pour: la version séquentielle, la version MPI avec 4 follower, puis avec 8 followers et pour finir la version OpenCL.
+
+|===
+|               | *Séquentiel* | *MPI 4 followers* | *MPI 8 followers* | *OpenCL*
+| 6 * 6         | 0.000015 s. | 0.003043 s. | 0.006845 s. | 0.000269 s.
+| 36 * 36       | 0.000455 s. | 0.004160 s. | 0.007079 s. | 0.000292 s.
+| 128 * 128     | 0.005853 s. | 0.008970 s. | 0.011434 s. | 0.000327 s.
+| 256 * 256     | 0.023448 s. | 0.023245 s. | 0.022641 s. | 0.000426 s.
+| 512 * 512     | 0.103577 s. | 0.089127 s. | 0.077441 s. | 0.000957 s.
+| 1024 * 1024   | 0.414017 s. | 0.350248 s. | 0.282527 s. | 0.002909 s.
+| 2048 * 2048   | 1.823418 s. | 1.552951 s. | 1.285957 s. | 0.009834 s.
+| 4096 * 4096   | 7.950532 s. | 6.717794 s. | 5.540267 s. | 0.036162 s.
+|===
+
+.Retranscription des données en graphique.
+image::https://i.imgur.com/eV9S3XJ.png[]
+
+*Que pouvons nous en penser ?* Déja nous pouvons observer que les versions CPU sont beaucoup moins performantes que la version OpenCL qui elle tourne sur le GPU. Cela est du au très grand nombre d'unités de calculs présentes sur la carte graphique. Le problème MNT est très cohérent avec l'approche qu'ont les cartes graphiques pour du calcul de masse. Chaque calcul est "indépendant" et il s'agit d'une matrice, donc à 2 dimensions (plus pratique pour calculer sur GPU vu que les work-groups peuvent avoir jusqu'à 3 dimensions).
+
+Nous pouvons voir que lorsque nous passons de séquentiel a MPI pour de très petit jeux de données le temps d'exécution est plus faible pour la version séquentielle. Ceci est explicable, lorsque nous séparons les données a traiter pour chaque processus, nous devons les envoyer a chaque follower pour qu'il puisse les traiter puis les renvoyer vers le leader pour les recomposer. C'est cet échange de données qui prends du temps et fait que la version MPI pour petites matrices n'est pas plus rapide. Cette raison est aussi applicable pour la version OpenCL. Le programme hôte (sur le CPU) envoie les données au GPU ce qui prends un peu de temps et fait que, sur les petit jeux de données, nous perdons du temps.
+
+Cependant, il est possible de voir que les versions MPI 4 follower et 8 follower commencent a creuser l'écart avec la version séquentielle dès les jeux de données de 1024 * 1024 et s'éloigne encore plus lorsque nous sommes a 4096 * 4096. Ce qui prouve que cette approche est viable pour de très gros jeux de données. Malgré tout, la solution la plus optimale reste la version OpenCL. Celle-ci donne des résultats qui ne sont même pas comparables aux autres puisque nous ne dépassons même pas le dixième de seconde d'execution. Cela montre la puissance de l'exploitation des GPU et de leur approche particulière aux calculs intensifs comparés aux CPU qui sont plus a usage commun.
+
+== Conclusion
+
+Nous avons pu voir que le calcul par carte graphique est clairement avantageux pour ce genre de problème. Mais est-ce une solution complètement viable ? En effet comme tout programme celui-ci doit s'executer et stocker ses informations, pour le CPU il s'agit de la RAM et pour le GPU de VRAM. Malheureusement les VRAM sont bien souvent plus limités que la RAM du fait qu'elles ne soient pas modulable (chaque GPU a un nombre de VRAM non modifiable) contrairement a leur equivalent CPU ou il est possible d'en ajouter ou d'en retirer. Donc le programme sur GPU aura une certaine limite, imaginons ici nous avons un peu plus de 7 Go de VRAM, la matrice max sera donc de dimensions approximatives: 41000 * 41000. Ce qui représente déja une grande matrice mais plus grand pourrait être traité par le CPU. Mais cela prendra plus de temps, voir beaucoup plus de temps. Il est malgré tout possible d'envisager d'adapter le code pour qu'il puisse traiter une sous parti sur GPU, à la manière de MPI sur plusieurs cartes graphiques pour ensuite recomposer le résultat. Une piste a explorer ?
+
+== Plus de détails sur le code ?
+
+Vous pourrez retrouver tout le code détaillé et commenté. Avec des connaissances de base en C++ il sera largement possible de le comprendre et de l'utiliser.

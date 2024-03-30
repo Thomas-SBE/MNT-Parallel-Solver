@@ -9,7 +9,7 @@ CFLAGS = -O3 -lOpenCL -w
 MPCFLAGS = 
 BUILD_DIR = build
 
-all: mpi ocl
+all: mpi ocl seq
 
 mpi: $(BUILD_DIR)
 	${MPCC} src/mpi_mnt.cpp src/lib.hpp -o build/mpimnt
@@ -17,6 +17,10 @@ mpi: $(BUILD_DIR)
 
 ocl: $(BUILD_DIR)
 	${CC} src/ocl_mnt.cpp src/lib.hpp ${CFLAGS} -o build/oclmnt
+	cp src/*.cl build/
+
+seq: $(BUILD_DIR)
+	${CC} src/seq_mnt.cpp src/lib.hpp ${CFLAGS} -o build/seqmnt
 	cp src/*.cl build/
 
 $(BUILD_DIR):
